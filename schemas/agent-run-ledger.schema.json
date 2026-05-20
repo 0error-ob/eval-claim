@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/0error-ob/eval-claim/schemas/agent-run-ledger.schema.json",
+  "title": "Agent Run Ledger v0",
+  "description": "A structured ledger format an agent produces during a single trial of a benchmark task. The ledger is the runtime evidence that a claim card cites. Field names use task-ontology primitives where applicable.",
+  "type": "object",
+  "required": ["run_identity", "task", "phases"],
+  "properties": {
+    "run_identity": {
+      "description": "Identifiers tying this ledger to a specific run, task, and trial.",
+      "type": "object",
+      "required": ["run_id", "task_id", "trial_id"],
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "description": "Stable identifier of the parent run."
+        },
+        "task_id": {
+          "type": "string",
+          "description": "Identifier of the task within the benchmark."
+        },
+        "trial_id": {
+          "type": "string",
+          "description": "Identifier of this trial within the task (e.g. UUID, or numeric index for k>1)."
+        },
+        "benchmark": {
+          "type": "string",
+          "description": "Public identifier of the benchmark."
+        },
+        "dataset": {
+          "type": "string",
+          "description": "Dataset string as recorded in result.json (e.g. terminal-bench/terminal-bench-2-1)."
+        },
+        "model": {
+          "type": "string",
+          "description": "Provider-namespaced model identifier."
+        },
+        "harness": {
+          "type": "string",
+          "description": "Harness name and version (e.g. harbor 0.6.4)."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when this trial started."
+        }
+      }
+    },
+    "task": {
+      "description": "Task description, structured using task-ontology primitives. See https://github.com/0error-ob/task-ontology/blob/main/PRIMITIVES.md",
+      "type": "object",
+      "required": ["actor", "goal"],
+      "properties": {
+        "actor": {
+          "type": "string",
+          "description": "task-ontology primitive: the system-under-evaluation as a delimited entity."
+        },
+        "goal": {
+          "type": "string",
+          "description": "task-ontology primitive: the terminal condition that defines done."
+        },
+        "transform_type": {
+          "type": "array",
+          "description": "task-ontology primitive: the class of operation required. May compose multiple types.",
+          "items": {
+            "enum": ["extraction", "transformation", "matching", "classification", "generation", "decision"]
+          }
+        },
+        "initial_state": {
+          "type": "string",
+          "description": "task-ontology primitive: what the actor inherits at t=0."
+        },
+        "target_state": {
+          "type": "string",
+          "description": "task-ontology primitive: the state that, when reached, satisfies the goal predicate."
+        },
+        "constraints": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "task-ontology primitive: rules and budgets that exclude regions of action space."
+        },
+        "tools": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "task-ontology primitive: action affordances available to the actor."
+        },
+        "environment": {
+          "type": "string",
+          "description": "task-ontology primitive: mutability and other agents outside the actor's deliberation."
+        },
+        "feedback": {
+          "type": "string",
+          "description": "task-ontology primitive: signals returned during execution (distinct from terminal scoring)."
+        },
+        "time_horizon": {
+          "type": "object",
+          "description": "task-ontology primitive: trajectory length budget.",
+          "properties": {
+            "max_turns": {"type": "integer"},
+            "max_seconds": {"type": "integer"}
+          }
+        }
+      }
+    },
+    "phases": {
+      "description": "Execution record, organized by phase. Phase names should align with the routing schema if one is in use.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "started_at"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Phase name (e.g. probe, execute, verify, stop)."
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ended_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {"type": "string"},
+                "input": {"type": "string"},
+                "output": {"type": "string"},
+                "exit_code": {"type": "integer"}
+              }
+            },
+            "description": "Actions taken in this phase, in order."
+          },
+          "observations": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Observations recorded by the actor in this phase."
+          },
+          "ledger_writes": {
+            "type": "object",
+            "description": "Phase-specific structured writes. Field names should match the routing schema's ledger_writes for this phase.",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "verifier_evidence": {
+      "description": "Output of the verifier run. Required if the phase named 'verify' completed.",
+      "type": "object",
+      "properties": {
+        "command": {"type": "string"},
+        "exit_code": {"type": "integer"},
+        "stdout": {"type": "string"},
+        "stderr": {"type": "string"},
+        "passed": {"type": "boolean"}
+      }
+    },
+    "stop_condition": {
+      "description": "Why the trial terminated.",
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": ["verifier_pass", "verifier_fail", "agent_declared_failure", "exception", "timeout", "budget_exhausted"]
+        },
+        "detail": {"type": "string"}
+      }
+    },
+    "failure_class": {
+      "description": "If the trial did not pass, classification of failure cause.",
+      "type": "object",
+      "properties": {
+        "category": {
+          "enum": [
+            "infrastructure",
+            "agent_logic",
+            "verifier_design",
+            "task_underspecification",
+            "model_capability",
+            "unknown"
+          ]
+        },
+        "subcategory": {"type": "string"},
+        "evidence": {"type": "string"}
+      }
+    },
+    "cost": {
+      "description": "task-ontology primitive: units of effort consumed in producing this trial.",
+      "type": "object",
+      "properties": {
+        "input_tokens": {"type": "integer"},
+        "output_tokens": {"type": "integer"},
+        "cache_read_tokens": {"type": "integer"},
+        "cache_write_tokens": {"type": "integer"},
+        "tool_calls": {"type": "integer"},
+        "wallclock_seconds": {"type": "number"},
+        "dollars": {"type": "number"}
+      }
+    }
+  }
+}
